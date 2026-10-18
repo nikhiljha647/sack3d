@@ -1,0 +1,72 @@
+# ==============================================================================
+# SACK3D Production Apache / cPanel Configuration for MilesWeb
+# ==============================================================================
+
+# 1. Prevent Directory Browsing
+Options -Indexes
+
+# 2. Block sensitive files from direct web access
+<FilesMatch "^\.env|\.git|\.sql$|\.log$|package\.json|package-lock\.json">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# 3. Proper MIME types for 3D Models, WebAR, Textures, and Modern Web Formats
+<IfModule mod_mime.c>
+    AddType model/gltf-binary .glb
+    AddType model/gltf+json .gltf
+    AddType text/plain .obj
+    AddType model/stl .stl
+    AddType image/webp .webp
+    AddType image/svg+xml .svg
+    AddType font/woff2 .woff2
+    AddType application/wasm .wasm
+</IfModule>
+
+# 4. Enable Cross-Origin Resource Sharing (CORS) for 3D models & QR Codes
+<IfModule mod_headers.c>
+    <FilesMatch "\.(glb|gltf|obj|stl|png|jpg|jpeg|webp|svg)$">
+        Header set Access-Control-Allow-Origin "*"
+        Header set Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
+        Header set Access-Control-Allow-Headers "Content-Type, Range"
+        Header set Accept-Ranges "bytes"
+    </FilesMatch>
+    
+    # Cache Control for static fingerprinted assets
+    <FilesMatch "\.(js|css|woff2|woff|ttf|svg|ico)$">
+        Header set Cache-Control "max-age=31536000, public, immutable"
+    </FilesMatch>
+
+    # Never cache index.html so frontend updates reflect immediately
+    <FilesMatch "^index\.html$">
+        Header set Cache-Control "no-cache, no-store, must-revalidate"
+    </FilesMatch>
+</IfModule>
+
+# 5. Enable GZIP compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain text/html text/xml text/css
+    AddOutputFilterByType DEFLATE application/javascript application/json application/xml
+    AddOutputFilterByType DEFLATE image/svg+xml model/gltf+json
+</IfModule>
+
+# 6. SPA Routing Fallback (for Apache serving static dist directly)
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # If file or directory exists, serve directly
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Don't rewrite backend API, upload, qr, or health routes
+    RewriteCond %{REQUEST_URI} !^/api/
+    RewriteCond %{REQUEST_URI} !^/uploads/
+    RewriteCond %{REQUEST_URI} !^/qr/
+    RewriteCond %{REQUEST_URI} !^/models/
+    RewriteCond %{REQUEST_URI} !^/health
+
+    # Send all other requests to index.html for React SPA router
+    RewriteRule ^ index.html [L]
+</IfModule>
